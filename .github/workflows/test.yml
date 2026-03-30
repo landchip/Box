@@ -14,14 +14,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      # 2. 安装 JDK（必须）
+      # 2. JDK（必须）
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      # 3. 缓存 Gradle（加速）
+      # 3. Python（解决 Chaquopy 报错）
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.8
+
+      # 4. 缓存 Gradle（加速）
       - name: Cache Gradle
         uses: actions/cache@v4
         with:
@@ -32,12 +38,22 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}
 
-      # 4. 关键：生成 local.properties（解决你的报错）
+      # 5. （可选）缓存 pip（避免下载慢/失败）
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}
+
+      # 6. 关键：生成 local.properties（修复两个问题）
       - name: Create local.properties
         run: |
           echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          echo "buildPython=$(which python)" >> local.properties
 
-      # （可选）如果你项目需要签名，这里可以补
+      # （可选）如果你需要签名 APK，在这里加
       # - name: Add signing config
       #   run: |
       #     echo "storeFile=xxx.jks" >> local.properties
@@ -45,19 +61,19 @@ jobs:
       #     echo "keyAlias=xxx" >> local.properties
       #     echo "keyPassword=xxx" >> local.properties
 
-      # 5. 构建 APK
+      # 7. 构建 APK
       - name: Build with Gradle
         run: |
           chmod +x gradlew
           ./gradlew assembleRelease --build-cache --parallel --warning-mode all
 
-      # 6. 收集 APK（稳定路径）
+      # 8. 收集 APK
       - name: Prepare APK
         run: |
           mkdir -p apk
           find . -type f -name "*.apk" -path "*/build/outputs/apk/*" -exec cp {} apk/ \;
 
-      # 7. 上传产物
+      # 9. 上传产物
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
